@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Wend Swipe</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;700&display=swap">
+<style>
+/* Layout: one-screen game card — header, theme, board, word slots, controls */
+:root{
+  --bg:#f6e3e1; --surface:#fff6f4; --ink:#2a1b1d; --muted:#7b6366;
+  --line:#e2c6c3; --cell:#fbeeec; --accent:#2f6f5e; --bad:#c2413a;
+  --display:"Bricolage Grotesque",ui-rounded,system-ui,sans-serif;
+  --body:"Figtree",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#1f1718; --surface:#2a2021; --ink:#f7e9e7; --muted:#b39a9c;
+  --line:#40322f; --cell:#33282a; --accent:#6fc2a8; --bad:#ff7a70; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#1f1718; --surface:#2a2021; --ink:#f7e9e7; --muted:#b39a9c;
+  --line:#40322f; --cell:#33282a; --accent:#6fc2a8; --bad:#ff7a70; color-scheme:dark}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  -webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+.app{max-width:460px;margin:0 auto;padding-block:14px 24px;display:flex;flex-direction:column;gap:14px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+h1{font-family:var(--display);font-weight:800;font-size:1.7rem;margin:0;letter-spacing:-.02em}
+h1 span{color:var(--accent)}
+.meta{display:flex;gap:10px;align-items:center;font-variant-numeric:tabular-nums;color:var(--muted);font-weight:500}
+.levels{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.levels button{flex:0 0 auto;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);
+  border-radius:999px;padding:6px 12px;font:600 .82rem var(--body);cursor:pointer}
+.levels button[aria-current="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.levels button.done::after{content:" ✓";color:var(--accent)}
+.levels button[aria-current="true"].done::after{color:var(--bg)}
+.theme{display:flex;justify-content:space-between;align-items:baseline}
+.theme b{font-family:var(--display);font-size:1.15rem;font-weight:600}
+.theme small{color:var(--muted);font-size:.78rem;letter-spacing:.06em;text-transform:uppercase}
+.board-wrap{background:var(--surface);border:2px solid var(--ink);border-radius:18px;padding:8px}
+.board{position:relative;width:100%;touch-action:none;user-select:none;-webkit-user-select:none}
+.board svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.cells{position:absolute;inset:0;display:grid}
+.cell{display:grid;place-items:center;font:700 clamp(1.2rem,6vw,1.7rem) var(--display);
+  color:var(--ink);position:relative;pointer-events:none;transition:color .2s}
+.cell.on{color:#1d1416}
+.cell.hint::before{content:"";position:absolute;inset:14%;border-radius:50%;border:3px dashed var(--accent);animation:spin 6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.board.shake{animation:shake .35s}
+@keyframes shake{25%{transform:translateX(-7px)}50%{transform:translateX(6px)}75%{transform:translateX(-3px)}}
+.status{min-height:1.3em;text-align:center;font-weight:600;color:var(--muted);font-size:.92rem}
+.status.bad{color:var(--bad)} .status.good{color:var(--accent)}
+.words{display:flex;flex-wrap:wrap;gap:10px 14px}
+.word{display:flex;gap:3px}
+.word i{width:22px;height:26px;border-radius:6px;background:var(--cell);border:1px solid var(--line);
+  display:grid;place-items:center;font:700 .85rem var(--display);font-style:normal;color:#1d1416}
+.controls{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.controls button,.win button{border:0;border-radius:999px;padding:12px 8px;font:700 .95rem var(--body);cursor:pointer;
+  background:var(--cell);color:var(--ink);border:1.5px solid var(--line)}
+.controls button:disabled{opacity:.45;cursor:default}
+button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.help{color:var(--muted);font-size:.85rem;line-height:1.45;margin:0}
+.win{position:fixed;inset:0;display:grid;place-items:center;background:color-mix(in srgb,var(--bg) 70%,transparent);
+  backdrop-filter:blur(4px);padding:24px;z-index:5}
+.win div{background:var(--surface);border:2px solid var(--ink);border-radius:20px;padding:24px;text-align:center;max-width:320px;width:100%;display:grid;gap:10px}
+.win h2{font-family:var(--display);font-size:1.8rem;margin:0}
+.win p{margin:0;color:var(--muted)}
+.win button.primary{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Wend<span>.</span></h1>
+    <div class="meta"><span id="timer">0:00</span></div>
+  </header>
+  <nav class="levels" id="levels" aria-label="Puzzles"></nav>
+  <div class="theme"><b id="themeName"></b><small id="progress"></small></div>
+  <div class="board-wrap"><div class="board" id="board"><svg id="svg"></svg><div class="cells" id="cells"></div></div></div>
+  <div class="status" id="status">Swipe through letters to spell a word</div>
+  <div class="words" id="words"></div>
+  <div class="controls">
+    <button id="undo" type="button">Undo</button>
+    <button id="hint" type="button">Hint</button>
+    <button id="shuffle" type="button">New layout</button>
+  </div>
+  <p class="help">Drag across neighbouring letters (up, down, left, right) to spell each hidden word. Every letter is used exactly once. Slide back over a letter to erase it. If you get stuck, undo a word.</p>
+</div>
+<div class="win" id="win" hidden><div>
+  <h2>Solved!</h2><p id="winText"></p>
+  <button class="primary" id="next" type="button">Next puzzle</button>
+  <button id="again" type="button">Play again</button>
+</div></div>
+
+<script>
+const LEVELS=[
+  {name:"Gen AI",r:5,c:5,words:["CLAUDE","TENSOR","EMBED","RAG","GPU","AI"]},
+  {name:"AI",r:6,c:6,words:["NEURAL","PROMPT","VISION","AGENT","MODEL","TOKEN","LLM"]},
+  {name:"UST",r:6,c:6,words:["TRIVANDRUM","DIGITAL","CLIENT","IMPACT","TEAM","UST"]},
+  {name:"Data",r:6,c:6,words:["PIPELINE","AIRFLOW","SCHEMA","QUERY","JSON","CSV","ETL"]},
+  {name:"Deep tech",r:6,c:6,words:["ROBOTICS","QUANTUM","SENSOR","QUBIT","DRONE","LIDAR"]},
+  {name:"BI",r:5,c:6,words:["INSIGHT","LOOKER","METRIC","TREND","KPI","BAR"]},
+  {name:"Cloud",r:6,c:6,words:["KUBERNETES","SERVER","LAMBDA","DOCKER","AZURE","AWS"]},
+];
+const COLORS=["#e8564f","#2f9a63","#3b7be0","#b5a21b","#d97bb6","#f29a3a","#7a62d6","#2aa6a6"];
+const TINTS=COLORS.map(c=>c+"55");
+const $=id=>document.getElementById(id);
+const store={get(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
+let done=store.get("wend-done",{});
+let L,grid,sol,owner,found,trace,dragging,hintCell,start,tick,level=0,solved;
+
+const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
+function nbrs(i,r,c){const y=i/c|0,x=i%c,o=[];if(y>0)o.push(i-c);if(y<r-1)o.push(i+c);if(x>0)o.push(i-1);if(x<c-1)o.push(i+1);return o}
+
+// Randomly tile the grid with snake paths, one per word
+function generate(r,c,words){
+  for(let attempt=0;attempt<500;attempt++){
+    const own=new Array(r*c).fill(-1),paths=[];let budget=4000;
+    const okComponents=(rem)=>{
+      if(!rem.length)return true;const min=Math.min(...rem.map(w=>w.length));
+      const seen=new Uint8Array(r*c);
+      for(let i=0;i<r*c;i++){if(own[i]!==-1||seen[i])continue;let n=0,st=[i];seen[i]=1;
+        while(st.length){const k=st.pop();n++;for(const m of nbrs(k,r,c))if(own[m]===-1&&!seen[m]){seen[m]=1;st.push(m)}}
+        if(n<min)return false}
+      return true};
+    const place=(rem)=>{
+      if(!rem.length)return true;if(--budget<0)return false;
+      const s=own.indexOf(-1);
+      for(const wi of shuffle([...rem.keys()])){
+        const w=rem[wi],len=w.length,path=[s];own[s]=99;
+        const rest=rem.filter((_,k)=>k!==wi);
+        const dfs=()=>{ if(--budget<0)return false;
+          if(path.length===len){if(!okComponents(rest))return false;paths.push({w,path:[...path]});
+            if(place(rest))return true;paths.pop();return false}
+          for(const m of shuffle(nbrs(path[path.length-1],r,c))){if(own[m]!==-1)continue;own[m]=99;path.push(m);
+            if(dfs())return true;
+            path.pop();own[m]=-1}
+          return false};
+        if(dfs())return true;
+        own[s]=-1;
+      }
+      return false};
+    if(place([...words])){
+      const g=new Array(r*c);
+      return paths.map(p=>{const path=Math.random()<.5?p.path:[...p.path].reverse();path.forEach((k,i)=>g[k]=p.w[i]);return{w:p.w,path}}).concat([{grid:g}]);
+    }
+  }
+}
+
+function load(n,keepLayout){
+  level=n;L=LEVELS[n];
+  const out=generate(L.r,L.c,L.words);grid=out.pop().grid;sol=out;
+  owner=new Array(L.r*L.c).fill(-1);found=[];trace=[];hintCell=null;solved=false;
+  start=Date.now();clearInterval(tick);tick=setInterval(timer,500);timer();
+  $("board").style.aspectRatio=L.c+"/"+L.r;
+  $("cells").style.gridTemplate=`repeat(${L.r},1fr)/repeat(${L.c},1fr)`;
+  $("cells").innerHTML=grid.map((ch,i)=>`<div class="cell" data-i="${i}">${ch}</div>`).join("");
+  $("svg").setAttribute("viewBox",`0 0 ${L.c*100} ${L.r*100}`);
+  $("themeName").textContent=L.name;
+  $("win").hidden=true;status("Swipe through letters to spell a word");
+  renderLevels();render();
+}
+const fmt=s=>`${s/60|0}:${String(s%60|0).padStart(2,"0")}`;
+function timer(){if(!solved)$("timer").textContent=fmt((Date.now()-start)/1000)}
+function status(t,cls=""){const s=$("status");s.textContent=t;s.className="status "+cls}
+
+function renderLevels(){
+  $("levels").innerHTML=LEVELS.map((l,i)=>`<button type="button" data-l="${i}" aria-current="${i===level}" class="${done[l.name]?"done":""}">${i+1}. ${l.name}</button>`).join("");
+}
+const ctr=i=>[(i%L.c)*100+50,(i/L.c|0)*100+50];
+function pathSVG(p,color,w){
+  if(p.length===1){const[x,y]=ctr(p[0]);return `<circle cx="${x}" cy="${y}" r="${w/2}" fill="${color}"/>`}
+  return `<polyline points="${p.map(ctr).join(" ")}" fill="none" stroke="${color}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`;
+}
+function render(){
+  let s="";
+  // cell backgrounds
+  for(let i=0;i<grid.length;i++){const[x,y]=ctr(i);const o=owner[i];
+    s+=`<rect x="${x-46}" y="${y-46}" width="92" height="92" rx="14" fill="${o>=0?TINTS[found[o].ci]:"var(--cell)"}"/>`}
+  found.forEach(f=>{s+=pathSVG(f.path,COLORS[f.ci],66);const[x,y]=ctr(f.path[0]);s+=`<circle cx="${x}" cy="${y}" r="38" fill="none" stroke="#fff" stroke-opacity=".7" stroke-width="5"/>`});
+  if(trace.length)s+=pathSVG(trace,"var(--ink)",58).replace("<polyline",'<polyline opacity=".22"').replace("<circle",'<circle opacity=".22"');
+  $("svg").innerHTML=s;
+  document.querySelectorAll(".cell").forEach(el=>{const i=+el.dataset.i;el.classList.toggle("on",owner[i]>=0);el.classList.toggle("hint",i===hintCell)});
+  // word slots
+  $("words").innerHTML=L.words.map(w=>{const f=found.find(x=>x.w===w);
+    return `<div class="word" aria-label="${f?w:w.length+" letters"}">${[...w].map((ch,k)=>`<i style="${f?`background:${COLORS[f.ci]};border-color:${COLORS[f.ci]};color:#fff`:""}">${f?ch:""}</i>`).join("")}</div>`}).join("");
+  $("progress").textContent=`${found.length} / ${L.words.length} words`;
+  $("undo").disabled=!found.length;
+}
+
+// Pointer handling
+function cellAt(e){
+  const r=$("board").getBoundingClientRect(),cw=r.width/L.c,ch=r.height/L.r;
+  const x=e.clientX-r.left,y=e.clientY-r.top,cx=Math.floor(x/cw),cy=Math.floor(y/ch);
+  if(cx<0||cy<0||cx>=L.c||cy>=L.r)return -1;
+  const dx=x-(cx+.5)*cw,dy=y-(cy+.5)*ch;
+  return Math.hypot(dx,dy)<Math.min(cw,ch)*.44?cy*L.c+cx:-1; // inner zone so diagonal swipes don't misfire
+}
+const adj=(a,b)=>nbrs(a,L.r,L.c).includes(b);
+$("board").addEventListener("pointerdown",e=>{
+  if(solved)return;const i=cellAt(e);if(i<0||owner[i]>=0)return;
+  dragging=true;trace=[i];$("board").setPointerCapture(e.pointerId);render();status(grid[i]);
+});
+$("board").addEventListener("pointermove",e=>{
+  if(!dragging)return;const i=cellAt(e);if(i<0)return;
+  const last=trace[trace.length-1];if(i===last)return;
+  if(trace.length>1&&i===trace[trace.length-2])trace.pop();
+  else if(owner[i]<0&&!trace.includes(i)&&adj(last,i))trace.push(i);
+  else return;
+  render();status(trace.map(k=>grid[k]).join(""));
+});
+const end=()=>{
+  if(!dragging)return;dragging=false;
+  const w=trace.map(k=>grid[k]).join("");
+  if(trace.length>1){
+    const target=L.words.find(x=>x===w&&!found.some(f=>f.w===x));
+    if(target){const ci=L.words.indexOf(target)%COLORS.length;found.push({w,path:[...trace],ci});
+      trace.forEach(k=>owner[k]=found.length-1);hintCell=null;status(w+"!","good");
+      if(navigator.vibrate)try{navigator.vibrate(20)}catch{}
+      trace=[];render();checkWin();return}
+    status(found.some(f=>f.w===w)?`${w} is already found`:`${w} isn't one of the words`,"bad");
+    const b=$("board");b.classList.remove("shake");void b.offsetWidth;b.classList.add("shake");
+  }else status("Swipe through letters to spell a word");
+  trace=[];render();
+};
+$("board").addEventListener("pointerup",end);$("board").addEventListener("pointercancel",end);
+
+function checkWin(){
+  if(found.length<L.words.length)return;
+  solved=true;clearInterval(tick);
+  const t=fmt((Date.now()-start)/1000);done[L.name]=true;store.set("wend-done",done);renderLevels();
+  $("winText").textContent=`${L.name} in ${t}`;
+  $("next").textContent=level<LEVELS.length-1?"Next puzzle":"Back to puzzle 1";
+  setTimeout(()=>$("win").hidden=false,450);
+}
+$("undo").onclick=()=>{const f=found.pop();if(!f)return;f.path.forEach(k=>owner[k]=-1);status(`Removed ${f.w}`);render()};
+$("hint").onclick=()=>{
+  const free=sol.find(s=>!found.some(f=>f.w===s.w)&&s.path.every(k=>owner[k]<0));
+  if(!free){status("Undo a word to open up a path","bad");return}
+  hintCell=free.path[0];status(`${free.w.length}-letter word starts at the circled ${grid[hintCell]}`);render();
+};
+$("shuffle").onclick=()=>load(level);
+$("levels").onclick=e=>{const b=e.target.closest("button");if(b)load(+b.dataset.l)};
+$("next").onclick=()=>load((level+1)%LEVELS.length);
+$("again").onclick=()=>load(level);
+load(0);
+</script>
+
+</body>
+</html>
