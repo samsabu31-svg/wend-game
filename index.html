@@ -57,7 +57,7 @@ h1 span{color:var(--accent)}
 .word{display:flex;gap:3px}
 .word i{width:22px;height:26px;border-radius:6px;background:var(--cell);border:1px solid var(--line);
   display:grid;place-items:center;font:700 .85rem var(--display);font-style:normal;color:#1d1416}
-.controls{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.controls{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
 .controls button,.win button{border:0;border-radius:999px;padding:12px 8px;font:700 .95rem var(--body);cursor:pointer;
   background:var(--cell);color:var(--ink);border:1.5px solid var(--line)}
 .controls button:disabled{opacity:.45;cursor:default}
@@ -93,9 +93,10 @@ button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
   <div class="controls">
     <button id="undo" type="button">Undo</button>
     <button id="hint" type="button">Hint</button>
-    <button id="shuffle" type="button">New layout</button>
+    <button id="skip" type="button">Skip</button>
+    <button id="shuffle" type="button">Shuffle</button>
   </div>
-  <p class="help">Drag across neighbouring letters (up, down, left, right) to spell each hidden word. Every letter is used exactly once. Slide back over a letter to erase it. A wrong word costs a lifeline ❤️, and losing all 3 ends the game. If you get stuck, use a hint or undo a word.</p>
+  <p class="help">Drag across neighbouring letters (up, down, left, right) to spell each hidden word. Every letter is used exactly once. Slide back over a letter to erase it. You have 3 skips ❤️ for the whole game. Each one fills in a word. If you’re stuck with no skips left, it’s game over 😭.</p>
 </div>
 <div class="win" id="win" hidden><div>
   <div class="emoji" id="winEmoji">🎉</div><h2 id="winTitle">Solved!</h2><p id="winText"></p>
@@ -105,21 +106,21 @@ button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 
 <script>
 const LEVELS=[
-  {name:"Fruits",r:5,c:5,words:["BANANA","APPLE","MANGO","LEMON","KIWI"]},
-  {name:"Animals",r:5,c:5,words:["MONKEY","RABBIT","TIGER","HORSE","OWL"]},
-  {name:"Colours",r:5,c:6,words:["PURPLE","ORANGE","YELLOW","GREEN","BLUE","RED"]},
-  {name:"Food",r:5,c:6,words:["BURGER","PIZZA","PASTA","BREAD","SALAD","RICE"]},
-  {name:"Gadgets",r:5,c:6,words:["LAPTOP","ROBOT","CLOUD","MOUSE","EMAIL","CHIP"]},
-  {name:"Sports",r:6,c:6,words:["FOOTBALL","CRICKET","TENNIS","HOCKEY","RUGBY","GOLF"]},
-  {name:"Tech",hard:true,r:6,c:6,words:["ALGORITHM","DATABASE","PYTHON","NEURAL","TOKEN","AI"]},
+  {name:"Gen AI",r:5,c:5,words:["CHATGPT","CLAUDE","GEMINI","PROMPT"]},
+  {name:"AI",r:5,c:6,words:["CHATBOT","VISION","ROBOT","MODEL","AGENT","AI"]},
+  {name:"UST",r:5,c:6,words:["DIGITAL","CLIENT","OFFICE","TEAM","CODE","UST"]},
+  {name:"Data",r:5,c:6,words:["REPORT","BACKUP","EXCEL","TABLE","CHART","SQL"]},
+  {name:"Deep tech",r:5,c:5,words:["ROCKET","SENSOR","DRONE","LASER","GPS"]},
+  {name:"BI",r:5,c:6,words:["DASHBOARD","GRAPH","TREND","SALES","KPI","PIE"]},
+  {name:"Cloud",hard:true,r:6,c:6,words:["KUBERNETES","SERVER","LAMBDA","DOCKER","AZURE","AWS"]},
 ];
-const LIVES=3;
+const LIVES=3;let lives=LIVES; // skips last the whole game
 const COLORS=["#e8564f","#2f9a63","#3b7be0","#b5a21b","#d97bb6","#f29a3a","#7a62d6","#2aa6a6"];
 const TINTS=COLORS.map(c=>c+"55");
 const $=id=>document.getElementById(id);
 const store={get(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
 let done=store.get("wend-done",{});
-let lives,L,grid,sol,owner,found,trace,dragging,hintCell,start,tick,level=0,solved;
+let L,grid,sol,owner,found,trace,dragging,hintCell,start,tick,level=0,solved;
 
 const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
 function nbrs(i,r,c){const y=i/c|0,x=i%c,o=[];if(y>0)o.push(i-c);if(y<r-1)o.push(i+c);if(x>0)o.push(i-1);if(x<c-1)o.push(i+1);return o}
@@ -162,7 +163,7 @@ function generate(r,c,words){
 function load(n,keepLayout){
   level=n;L=LEVELS[n];
   const out=generate(L.r,L.c,L.words);grid=out.pop().grid;sol=out;
-  owner=new Array(L.r*L.c).fill(-1);found=[];trace=[];hintCell=null;solved=false;lives=LIVES;
+  owner=new Array(L.r*L.c).fill(-1);found=[];trace=[];hintCell=null;solved=false;
   start=Date.now();clearInterval(tick);tick=setInterval(timer,500);timer();
   $("board").style.aspectRatio=L.c+"/"+L.r;
   $("cells").style.gridTemplate=`repeat(${L.r},1fr)/repeat(${L.c},1fr)`;
@@ -198,6 +199,7 @@ function render(){
     return `<div class="word" aria-label="${f?w:w.length+" letters"}">${[...w].map((ch,k)=>`<i style="${f?`background:${COLORS[f.ci]};border-color:${COLORS[f.ci]};color:#fff`:""}">${f?ch:""}</i>`).join("")}</div>`}).join("");
   $("progress").textContent=`${found.length} / ${L.words.length} words`;
   $("lives").textContent="❤️".repeat(lives)+"🤍".repeat(LIVES-lives);
+  $("skip").textContent=`Skip (${lives})`;
   $("undo").disabled=!found.length;
 }
 
@@ -231,9 +233,7 @@ const end=()=>{
       trace.forEach(k=>owner[k]=found.length-1);hintCell=null;status(w+"!","good");
       if(navigator.vibrate)try{navigator.vibrate(20)}catch{}
       trace=[];render();checkWin();return}
-    if(found.some(f=>f.w===w))status(`${w} is already found`,"bad");
-    else{lives--;status(lives?`${w} isn't one of the words · ${lives} lifeline${lives>1?"s":""} left`:"Out of lifelines","bad");
-      if(!lives){trace=[];render();gameOver();return}}
+    status(found.some(f=>f.w===w)?`${w} is already found`:`${w} isn't one of the words`,"bad");
     const b=$("board");b.classList.remove("shake");void b.offsetWidth;b.classList.add("shake");
   }else status("Swipe through letters to spell a word");
   trace=[];render();
@@ -243,7 +243,7 @@ $("board").addEventListener("pointerup",end);$("board").addEventListener("pointe
 function gameOver(){
   solved=true;clearInterval(tick);
   $("winEmoji").textContent="😭";$("winTitle").textContent="Game over";
-  $("winText").textContent=`You used all ${LIVES} lifelines on ${L.name}`;
+  $("winText").textContent=`No skips left. You got stuck on ${L.name}`;
   $("next").hidden=true;$("again").textContent="Try again";$("again").className="primary";
   $("win").setAttribute("data-lost","");setTimeout(()=>$("win").hidden=false,450);
 }
@@ -263,10 +263,19 @@ $("hint").onclick=()=>{
   if(!free){status("Undo a word to open up a path","bad");return}
   hintCell=free.path[0];status(`${free.w.length}-letter word starts at the circled ${grid[hintCell]}`);render();
 };
+$("skip").onclick=()=>{
+  if(solved)return;
+  if(!lives){gameOver();return}
+  const free=sol.find(s=>!found.some(f=>f.w===s.w)&&s.path.every(k=>owner[k]<0));
+  if(!free){status("Undo a word to open up a path","bad");return}
+  lives--;found.push({w:free.w,path:free.path,ci:L.words.indexOf(free.w)%COLORS.length});
+  free.path.forEach(k=>owner[k]=found.length-1);hintCell=null;
+  status(`Skipped: ${free.w} · ${lives} skip${lives===1?"":"s"} left`,"good");render();checkWin();
+};
 $("shuffle").onclick=()=>load(level);
 $("levels").onclick=e=>{const b=e.target.closest("button");if(b)load(+b.dataset.l)};
 $("next").onclick=()=>load((level+1)%LEVELS.length);
-$("again").onclick=()=>load(level);
+$("again").onclick=()=>{if($("win").hasAttribute("data-lost"))lives=LIVES;load(level)};
 load(0);
 </script>
 
