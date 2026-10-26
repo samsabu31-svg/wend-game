@@ -69,6 +69,11 @@ button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .win div{background:var(--surface);border:2px solid var(--ink);border-radius:20px;padding:24px;text-align:center;max-width:320px;width:100%;display:grid;gap:10px}
 .win h2{font-family:var(--display);font-size:1.8rem;margin:0}
 .win p{margin:0;color:var(--muted)}
+.win .emoji{font-size:3.4rem;line-height:1}
+.win[data-lost] .emoji{animation:sob 1.2s ease-in-out infinite}
+@keyframes sob{50%{transform:translateY(4px) rotate(-4deg)}}
+#lives{letter-spacing:2px}
+.levels button.hard{border-color:var(--bad)}
 .win button.primary{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
@@ -78,7 +83,7 @@ button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 <div class="app">
   <header>
     <h1>Wend<span>.</span></h1>
-    <div class="meta"><span id="timer">0:00</span></div>
+    <div class="meta"><span id="lives" aria-label="Lifelines"></span><span id="timer">0:00</span></div>
   </header>
   <nav class="levels" id="levels" aria-label="Puzzles"></nav>
   <div class="theme"><b id="themeName"></b><small id="progress"></small></div>
@@ -90,30 +95,31 @@ button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
     <button id="hint" type="button">Hint</button>
     <button id="shuffle" type="button">New layout</button>
   </div>
-  <p class="help">Drag across neighbouring letters (up, down, left, right) to spell each hidden word. Every letter is used exactly once. Slide back over a letter to erase it. If you get stuck, undo a word.</p>
+  <p class="help">Drag across neighbouring letters (up, down, left, right) to spell each hidden word. Every letter is used exactly once. Slide back over a letter to erase it. A wrong word costs a lifeline ❤️, and losing all 3 ends the game. If you get stuck, use a hint or undo a word.</p>
 </div>
 <div class="win" id="win" hidden><div>
-  <h2>Solved!</h2><p id="winText"></p>
+  <div class="emoji" id="winEmoji">🎉</div><h2 id="winTitle">Solved!</h2><p id="winText"></p>
   <button class="primary" id="next" type="button">Next puzzle</button>
   <button id="again" type="button">Play again</button>
 </div></div>
 
 <script>
 const LEVELS=[
-  {name:"Gen AI",r:5,c:5,words:["CLAUDE","TENSOR","EMBED","RAG","GPU","AI"]},
-  {name:"AI",r:6,c:6,words:["NEURAL","PROMPT","VISION","AGENT","MODEL","TOKEN","LLM"]},
-  {name:"UST",r:6,c:6,words:["TRIVANDRUM","DIGITAL","CLIENT","IMPACT","TEAM","UST"]},
-  {name:"Data",r:6,c:6,words:["PIPELINE","AIRFLOW","SCHEMA","QUERY","JSON","CSV","ETL"]},
-  {name:"Deep tech",r:6,c:6,words:["ROBOTICS","QUANTUM","SENSOR","QUBIT","DRONE","LIDAR"]},
-  {name:"BI",r:5,c:6,words:["INSIGHT","LOOKER","METRIC","TREND","KPI","BAR"]},
-  {name:"Cloud",r:6,c:6,words:["KUBERNETES","SERVER","LAMBDA","DOCKER","AZURE","AWS"]},
+  {name:"Fruits",r:5,c:5,words:["BANANA","APPLE","MANGO","LEMON","KIWI"]},
+  {name:"Animals",r:5,c:5,words:["MONKEY","RABBIT","TIGER","HORSE","OWL"]},
+  {name:"Colours",r:5,c:6,words:["PURPLE","ORANGE","YELLOW","GREEN","BLUE","RED"]},
+  {name:"Food",r:5,c:6,words:["BURGER","PIZZA","PASTA","BREAD","SALAD","RICE"]},
+  {name:"Gadgets",r:5,c:6,words:["LAPTOP","ROBOT","CLOUD","MOUSE","EMAIL","CHIP"]},
+  {name:"Sports",r:6,c:6,words:["FOOTBALL","CRICKET","TENNIS","HOCKEY","RUGBY","GOLF"]},
+  {name:"Tech",hard:true,r:6,c:6,words:["ALGORITHM","DATABASE","PYTHON","NEURAL","TOKEN","AI"]},
 ];
+const LIVES=3;
 const COLORS=["#e8564f","#2f9a63","#3b7be0","#b5a21b","#d97bb6","#f29a3a","#7a62d6","#2aa6a6"];
 const TINTS=COLORS.map(c=>c+"55");
 const $=id=>document.getElementById(id);
 const store={get(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
 let done=store.get("wend-done",{});
-let L,grid,sol,owner,found,trace,dragging,hintCell,start,tick,level=0,solved;
+let lives,L,grid,sol,owner,found,trace,dragging,hintCell,start,tick,level=0,solved;
 
 const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
 function nbrs(i,r,c){const y=i/c|0,x=i%c,o=[];if(y>0)o.push(i-c);if(y<r-1)o.push(i+c);if(x>0)o.push(i-1);if(x<c-1)o.push(i+1);return o}
@@ -156,14 +162,14 @@ function generate(r,c,words){
 function load(n,keepLayout){
   level=n;L=LEVELS[n];
   const out=generate(L.r,L.c,L.words);grid=out.pop().grid;sol=out;
-  owner=new Array(L.r*L.c).fill(-1);found=[];trace=[];hintCell=null;solved=false;
+  owner=new Array(L.r*L.c).fill(-1);found=[];trace=[];hintCell=null;solved=false;lives=LIVES;
   start=Date.now();clearInterval(tick);tick=setInterval(timer,500);timer();
   $("board").style.aspectRatio=L.c+"/"+L.r;
   $("cells").style.gridTemplate=`repeat(${L.r},1fr)/repeat(${L.c},1fr)`;
   $("cells").innerHTML=grid.map((ch,i)=>`<div class="cell" data-i="${i}">${ch}</div>`).join("");
   $("svg").setAttribute("viewBox",`0 0 ${L.c*100} ${L.r*100}`);
   $("themeName").textContent=L.name;
-  $("win").hidden=true;status("Swipe through letters to spell a word");
+  $("win").hidden=true;$("win").removeAttribute("data-lost");status("Swipe through letters to spell a word");
   renderLevels();render();
 }
 const fmt=s=>`${s/60|0}:${String(s%60|0).padStart(2,"0")}`;
@@ -171,7 +177,7 @@ function timer(){if(!solved)$("timer").textContent=fmt((Date.now()-start)/1000)}
 function status(t,cls=""){const s=$("status");s.textContent=t;s.className="status "+cls}
 
 function renderLevels(){
-  $("levels").innerHTML=LEVELS.map((l,i)=>`<button type="button" data-l="${i}" aria-current="${i===level}" class="${done[l.name]?"done":""}">${i+1}. ${l.name}</button>`).join("");
+  $("levels").innerHTML=LEVELS.map((l,i)=>`<button type="button" data-l="${i}" aria-current="${i===level}" class="${done[l.name]?"done":""} ${l.hard?"hard":""}">${i+1}. ${l.name}${l.hard?" 🔥 Hard":""}</button>`).join("");
 }
 const ctr=i=>[(i%L.c)*100+50,(i/L.c|0)*100+50];
 function pathSVG(p,color,w){
@@ -191,6 +197,7 @@ function render(){
   $("words").innerHTML=L.words.map(w=>{const f=found.find(x=>x.w===w);
     return `<div class="word" aria-label="${f?w:w.length+" letters"}">${[...w].map((ch,k)=>`<i style="${f?`background:${COLORS[f.ci]};border-color:${COLORS[f.ci]};color:#fff`:""}">${f?ch:""}</i>`).join("")}</div>`}).join("");
   $("progress").textContent=`${found.length} / ${L.words.length} words`;
+  $("lives").textContent="❤️".repeat(lives)+"🤍".repeat(LIVES-lives);
   $("undo").disabled=!found.length;
 }
 
@@ -224,17 +231,28 @@ const end=()=>{
       trace.forEach(k=>owner[k]=found.length-1);hintCell=null;status(w+"!","good");
       if(navigator.vibrate)try{navigator.vibrate(20)}catch{}
       trace=[];render();checkWin();return}
-    status(found.some(f=>f.w===w)?`${w} is already found`:`${w} isn't one of the words`,"bad");
+    if(found.some(f=>f.w===w))status(`${w} is already found`,"bad");
+    else{lives--;status(lives?`${w} isn't one of the words · ${lives} lifeline${lives>1?"s":""} left`:"Out of lifelines","bad");
+      if(!lives){trace=[];render();gameOver();return}}
     const b=$("board");b.classList.remove("shake");void b.offsetWidth;b.classList.add("shake");
   }else status("Swipe through letters to spell a word");
   trace=[];render();
 };
 $("board").addEventListener("pointerup",end);$("board").addEventListener("pointercancel",end);
 
+function gameOver(){
+  solved=true;clearInterval(tick);
+  $("winEmoji").textContent="😭";$("winTitle").textContent="Game over";
+  $("winText").textContent=`You used all ${LIVES} lifelines on ${L.name}`;
+  $("next").hidden=true;$("again").textContent="Try again";$("again").className="primary";
+  $("win").setAttribute("data-lost","");setTimeout(()=>$("win").hidden=false,450);
+}
 function checkWin(){
   if(found.length<L.words.length)return;
   solved=true;clearInterval(tick);
   const t=fmt((Date.now()-start)/1000);done[L.name]=true;store.set("wend-done",done);renderLevels();
+  $("winEmoji").textContent="🎉";$("winTitle").textContent="Solved!";
+  $("next").hidden=false;$("again").textContent="Play again";$("again").className="";
   $("winText").textContent=`${L.name} in ${t}`;
   $("next").textContent=level<LEVELS.length-1?"Next puzzle":"Back to puzzle 1";
   setTimeout(()=>$("win").hidden=false,450);
