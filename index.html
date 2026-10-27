@@ -63,13 +63,13 @@ h1 span{color:var(--accent)}
 .controls button:disabled{opacity:.45;cursor:default}
 button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .help{color:var(--muted);font-size:.85rem;line-height:1.45;margin:0}
-.win{position:fixed;inset:0;display:grid;place-items:center;background:color-mix(in srgb,var(--bg) 70%,transparent);
+.win{position:fixed;inset:0;width:100%;height:100dvh;box-sizing:border-box;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--bg) 70%,transparent);
   backdrop-filter:blur(4px);padding:24px;z-index:5}
 .win[hidden]{display:none}
-.win div{background:var(--surface);border:2px solid var(--ink);border-radius:20px;padding:24px;text-align:center;max-width:320px;width:100%;display:grid;gap:10px}
+.win>div{background:var(--surface);border:2px solid var(--ink);border-radius:20px;padding:24px;text-align:center;max-width:320px;width:100%;display:grid;gap:10px}
 .win h2{font-family:var(--display);font-size:1.8rem;margin:0}
 .win p{margin:0;color:var(--muted)}
-.win .emoji{font-size:3.4rem;line-height:1}
+.win .emoji{display:block;font-size:3.4rem;line-height:1}
 .win[data-lost] .emoji{animation:sob 1.2s ease-in-out infinite}
 @keyframes sob{50%{transform:translateY(4px) rotate(-4deg)}}
 #lives{letter-spacing:2px}
@@ -99,20 +99,20 @@ button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
   <p class="help">Drag across neighbouring letters (up, down, left, right) to spell each hidden word. Every letter is used exactly once. Slide back over a letter to erase it. You have 3 skips ❤️ for the whole game. Each one fills in a word. If you’re stuck with no skips left, it’s game over 😭.</p>
 </div>
 <div class="win" id="win" hidden><div>
-  <div class="emoji" id="winEmoji">🎉</div><h2 id="winTitle">Solved!</h2><p id="winText"></p>
+  <span class="emoji" id="winEmoji">🎉</span><h2 id="winTitle">Solved!</h2><p id="winText"></p>
   <button class="primary" id="next" type="button">Next puzzle</button>
   <button id="again" type="button">Play again</button>
 </div></div>
 
 <script>
 const LEVELS=[
-  {name:"Gen AI",r:5,c:5,words:["CHATGPT","CLAUDE","GEMINI","PROMPT"]},
-  {name:"AI",r:5,c:6,words:["CHATBOT","VISION","ROBOT","MODEL","AGENT","AI"]},
-  {name:"UST",r:5,c:6,words:["DIGITAL","CLIENT","OFFICE","TEAM","CODE","UST"]},
-  {name:"Data",r:5,c:6,words:["REPORT","BACKUP","EXCEL","TABLE","CHART","SQL"]},
-  {name:"Deep tech",r:5,c:5,words:["ROCKET","SENSOR","DRONE","LASER","GPS"]},
-  {name:"BI",r:5,c:6,words:["DASHBOARD","GRAPH","TREND","SALES","KPI","PIE"]},
-  {name:"Cloud",hard:true,r:6,c:6,words:["KUBERNETES","SERVER","LAMBDA","DOCKER","AZURE","AWS"]},
+  {name:"Gen AI",r:5,c:5,words:["CLAUDE","GEMINI","PROMPT","CHAT","BOT"]},
+  {name:"AI",r:5,c:5,words:["ROBOT","SMART","BRAIN","MODEL","LEARN"]},
+  {name:"UST",r:5,c:5,words:["OFFICE","CLIENT","TEAM","CODE","UST","IT"]},
+  {name:"Data",r:5,c:5,words:["EXCEL","TABLE","CHART","FILE","SQL","ROW"]},
+  {name:"Deep tech",r:5,c:5,words:["ROCKET","DRONE","LASER","SPACE","CHIP"]},
+  {name:"BI",r:5,c:5,words:["GRAPH","SALES","TREND","BARS","PIE","KPI"]},
+  {name:"Cloud",hard:true,r:6,c:6,words:["SERVER","GOOGLE","UPLOAD","BACKUP","AZURE","SYNC","AWS"]},
 ];
 const LIVES=3;let lives=LIVES; // skips last the whole game
 const COLORS=["#e8564f","#2f9a63","#3b7be0","#b5a21b","#d97bb6","#f29a3a","#7a62d6","#2aa6a6"];
